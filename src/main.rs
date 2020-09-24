@@ -7,13 +7,25 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude,
 };
-use std::{env, process::exit, sync::mpsc, thread, time::Duration};
-use tokio::runtime::Runtime;
+use std::{env, process::exit, thread, time::Duration};
+use tokio::{runtime::Runtime, sync::mpsc, time::timeout};
 
-fn main() {
-    let (tx, rx): (mpsc::Sender<DiscordEvent>, mpsc::Receiver<DiscordEvent>) = mpsc::channel();
+use chord::common::{DiscordEvent, IntMessage};
+
+mod widgets {
+    pub mod message_list;
+}
+
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().unwrap();
+
+    // TODO: figure out why these must be declared as mutable. does await mutate...?
+    let (mut tx, mut rx): (mpsc::Sender<DiscordEvent>, mpsc::Receiver<DiscordEvent>) =
+        mpsc::channel(100);
 
     // Spawn Discord
+    // TODO: move this into the application, probably
     let _discord = thread::spawn(move || {
         let mut toki = Runtime::new().unwrap();
 
@@ -32,16 +44,18 @@ fn main() {
             let discord_tx = tx.clone();
             {
                 let mut data = client.data.write().await;
-                data.insert::<DiscordPipe>(std::sync::Mutex::new(discord_tx));
+                data.insert::<DiscordPipe>(discord_tx);
             }
 
-            if let Err(e) = tx.send(DiscordEvent::Heartbeat) {
+            if let Err(e) = tx.send(DiscordEvent::Heartbeat).await {
                 tx.send(DiscordEvent::DiscordError(String::from(format!("{}", e))))
+                    .await
                     .unwrap_or_default();
             }
 
             if let Err(e) = client.start().await {
                 tx.send(DiscordEvent::DiscordError(String::from(format!("{}", e))))
+                    .await
                     .unwrap_or_default();
             }
         });
@@ -49,7 +63,7 @@ fn main() {
 
     // heartbeat
     println!("Waiting for heartbeat message...");
-    if let Err(e) = rx.recv_timeout(Duration::from_secs(5)) {
+    if let Err(e) = timeout(Duration::from_secs(5), rx.recv()).await {
         println!("{}", Color::Red.paint(format!("Failed to start: {}", e)));
         exit(1);
     }
@@ -61,14 +75,7 @@ fn main() {
 struct DiscordPipe;
 
 impl prelude::TypeMapKey for DiscordPipe {
-    type Value = std::sync::Mutex<mpsc::Sender<DiscordEvent>>;
-}
-
-// General IPC
-enum DiscordEvent {
-    Heartbeat,
-    MsgRecv(String),
-    DiscordError(String),
+    type Value = mpsc::Sender<DiscordEvent>;
 }
 
 // Serene
@@ -93,26 +100,33 @@ impl EventHandler for Handler {
             .await
             .get::<DiscordPipe>()
             .unwrap()
-            .lock()
-            .unwrap()
-            .send(DiscordEvent::MsgRecv(msg.content))
+            .clone() // TODO: figure out why this is needed
+            .send(DiscordEvent::MsgRecv(msg.content.clone()))
+            .await
         {
-            Ok(_) => println!("Sent message through channel"),
+            Ok(_) => println!("Sent message through channel: {}", msg.content),
             Err(e) => println!("{}", e),
         }
     }
 }
 
 // Application container
-struct Chord;
+struct Chord {
+    message_list: widgets::message_list::MessageList,
+}
 
 impl Application for Chord {
     type Executor = executor::Null;
-    type Message = ();
+    type Message = IntMessage;
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Self::Message>) {
-        (Chord, Command::none())
+        (
+            Chord {
+                message_list: widgets::message_list::MessageList::new(),
+            },
+            Command::none(),
+        )
     }
 
     fn title(&self) -> String {
@@ -124,12 +138,16 @@ impl Application for Chord {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
-        Container::new(Column::new().push(Text::new(String::from("Receiving messages..."))))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(20)
-            .center_x()
-            .center_y()
-            .into()
+        Container::new(
+            Column::new()
+                .push(Text::new(String::from("Receiving messages...")))
+                .push(self.message_list.view()),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(20)
+        .center_x()
+        .center_y()
+        .into()
     }
 }

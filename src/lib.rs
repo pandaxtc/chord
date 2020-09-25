@@ -1,4 +1,9 @@
 pub mod common {
+    pub trait ChordWidget {
+        fn update(&self, msg: Message);
+        fn view(&mut self) -> iced::Element<Message>;
+    }
+
     // General IPC
     pub enum DiscordEvent {
         Heartbeat,
@@ -8,7 +13,7 @@ pub mod common {
 
     // Interwidget communication B)
     #[derive(Debug, Clone)]
-    pub enum IntMessage {
+    pub enum Message {
         MsgRecv(String),
     }
 }

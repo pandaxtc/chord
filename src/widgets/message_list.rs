@@ -1,11 +1,29 @@
 use iced::{widget::*, Container, Element, Scrollable, Text};
 
-use chord::common::IntMessage;
+use chord::common::{ChordWidget, Message};
 
 #[derive(Debug, Clone)]
 pub struct MessageList {
     scroll_state: scrollable::State,
     messages: Vec<String>,
+}
+
+impl ChordWidget for MessageList {
+    fn update(&self, _msg: Message) {
+        ()
+    }
+
+    fn view(&mut self) -> Element<Message> {
+        let content = Scrollable::new(&mut self.scroll_state).padding(20).push(
+            self.messages
+                .iter()
+                .fold(Column::new().spacing(20), |column, msg| {
+                    column.push(Text::new(msg.clone()))
+                }),
+        );
+
+        Container::new(content).center_x().center_y().into()
+    }
 }
 
 impl MessageList {
@@ -16,20 +34,5 @@ impl MessageList {
             scroll_state: scrollable::State::default(),
             messages: message,
         }
-    }
-
-    pub fn view(&mut self) -> Element<IntMessage> {
-        let content = self
-            .messages
-            .iter()
-            .fold(Column::new().spacing(20), |column, msg| {
-                column.push(Text::new(msg.clone()))
-            });
-
-        let scrolling = Scrollable::new(&mut self.scroll_state)
-            .padding(20)
-            .push(content);
-
-        Container::new(scrolling).into()
     }
 }

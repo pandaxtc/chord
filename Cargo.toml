@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["pandaxtc <waylonpeng@gmail.com>", "krashanoff <leo@krashanoff.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [[bin]]
 name = "chord"
 path = "src/main.rs"
@@ -17,6 +15,8 @@ path = "src/lib.rs"
 [dependencies]
 ansi_term = "0.12.1"
 dotenv = "^0.15.0"
-iced = "0.1.1"
 serenity = "0.9.0-rc.1"
 tokio = "0.2.22"
+
+[dependencies.iced]
+features = ["debug"]

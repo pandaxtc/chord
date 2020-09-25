@@ -16,6 +16,7 @@ path = "src/lib.rs"
 ansi_term = "0.12.1"
 dotenv = "^0.15.0"
 serenity = "0.9.0-rc.1"
+take_mut = "^0.2"
 tokio = "0.2.22"
 
 [dependencies.iced]

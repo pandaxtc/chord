@@ -134,20 +134,14 @@ impl Node {
     // split node with el
     // TODO: choose where el goes, first or second
     fn split(&mut self, split: Split, el: Box<dyn ChordWidget>) {
-        // TODO: find a better way to do this
-        let dummy_node = Node::Leaf(Box::new(widgets::message_list::MessageList::new()));
-        let mov_self = std::mem::replace(self, dummy_node);
-
-        *self = match mov_self {
-            Node::Leaf(ell) => {
-                Node::Node(split, Box::new(Node::Leaf(ell)), Box::new(Node::Leaf(el)))
-            }
-            Node::Node(spl, el_a, el_b) => Node::Node(
+        take_mut::take(self, |node| match node {
+            Node::Leaf(sibling) => Node::Node(
                 split,
-                Box::new(Node::Node(spl, el_a, el_b)),
+                Box::new(Node::Leaf(sibling)),
                 Box::new(Node::Leaf(el)),
             ),
-        }
+            Node::Node(_, _, _) => Node::Node(split, Box::new(node), Box::new(Node::Leaf(el))),
+        })
     }
 }
 
